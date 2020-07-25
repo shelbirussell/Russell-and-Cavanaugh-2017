@@ -38,8 +38,15 @@ foreach my$sample (keys %alleles) {
 
 	foreach my$scaffold (nsort keys %{$alleles{$sample}}) {
 		foreach my$position (nsort keys %{$alleles{$sample}{$scaffold}}) {
-			push @depths, $alleles{$sample}{$scaffold}{$position}{"DEPTH"} ;
-			$total_sites ++ ;
+			if (!exists $alleles{$sample}{$scaffold}{$position}{"DEPTH"}) {
+				delete $alleles{$sample}{$scaffold}{$position} ;
+				next ;
+			}
+
+			else {
+				push @depths, $alleles{$sample}{$scaffold}{$position}{"DEPTH"} ;
+				$total_sites ++ ;
+			}
 		}
 	}
 
@@ -71,10 +78,6 @@ foreach my$sample (keys %alleles) {
 
 	foreach my$scaff (nsort keys %{$alleles{$sample}}) {
 		foreach my$pos (nsort keys %{$alleles{$sample}{$scaff}}) {
-			if (!exists $alleles{$sample}{$scaff}{$pos}{"DEPTH"}) {
-				delete $alleles{$sample}{$scaff}{$pos} ;
-				next ;
-			}
 
 			# exclude sites with coverage out of bounds
 			if ($alleles{$sample}{$scaff}{$pos}{"DEPTH"} > $upperbound || $alleles{$sample}{$scaff}{$pos}{"DEPTH"} < $lowerbound) {
@@ -447,7 +450,7 @@ sub parse_pileup {
 					my$to_delete ;
 					foreach my$i (@range) {
 						# delete snp site if within 5 bp of indel (low and high confidence indels)
-						if ($mpileup{$sample}{$scaffold}{$position}{"INDEL"}) {
+						if ($mpileup{$sample}{$scaffold}{$i}{"INDEL"}) {
 							$to_delete = "yes" ;
 						}
 					}
@@ -457,7 +460,7 @@ sub parse_pileup {
 					}
 				}
 			}
-			print "Positions deleted in $sample on $scaffold within 5bp of indel: $deleted\n" ;
+			print "Positions deleted in sample #$sample on $scaffold within 5bp of indel: $deleted\n" ;
 		}
 		}
 

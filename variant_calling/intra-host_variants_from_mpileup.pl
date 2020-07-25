@@ -1,7 +1,6 @@
 use strict ;
 use warnings ;
 use Sort::Naturally ;
-#use Statistics::Histogram ;
 use File::Basename ;
 
 # Usage: perl intra-host_variants_from_pileup.pl Sv_sym_scaffold ref.fasta KB16gillMitoSym_stampy_realigned.pileup

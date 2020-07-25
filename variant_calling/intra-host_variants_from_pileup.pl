@@ -2,7 +2,7 @@ use strict ;
 use warnings ;
 use Sort::Naturally ;
 use Statistics::Histogram ;
-use File::Basename ; 
+use File::Basename ;
 use Data::Dumper ;
 use Math::Counting ;
 
@@ -63,18 +63,17 @@ my@new_mins = () ;
 foreach my$scaff (nsort keys %alleles) {
 	foreach my$pos (nsort keys %{$alleles{$scaff}}) {
 		if (!exists $alleles{$scaff}{$pos}{"DEPTH"}) {
-			print $scaff, "\t", $pos, "\tdepth:", $alleles{$scaff}{$pos}{"DEPTH"}, "\n" ;
 			delete $alleles{$scaff}{$pos} ;
 			next ;
 		}
-		
+
 		# exclude sites with coverage out of bounds
 		if ($alleles{$scaff}{$pos}{"DEPTH"} > $upperbound || $alleles{$scaff}{$pos}{"DEPTH"} < $lowerbound) {
 			$out_of_bounds_count ++ ;
 			delete $alleles{$scaff}{$pos} ;
 			next ;
 		}
-		
+
 		#exclude sites within 100 bp of the end of a scaffold due to potential mapping error undetectable by coverage anomalies
 		my$scaff_length = length($seqs{$scaff}) ;
 		if ($pos > $scaff_length-100) {
@@ -82,30 +81,30 @@ foreach my$scaff (nsort keys %alleles) {
 			delete $alleles{$scaff}{$pos} ;
 			next ;
 		}
-		
+
 		if ($pos < 100) {
 			$end_of_scaff_count ++ ;
 			delete $alleles{$scaff}{$pos} ;
 			next ;
 		}
-			
-		# skip site if 0 calls 
+
+		# skip site if 0 calls
     	if ($alleles{$scaff}{$pos}{"REF_COUNT"} == 0 && $alleles{$scaff}{$pos}{"ALT_A_COUNT"} == 0 && $alleles{$scaff}{$pos}{"ALT_T_COUNT"} == 0 && $alleles{$scaff}{$pos}{"ALT_C_COUNT"} == 0 && $alleles{$scaff}{$pos}{"ALT_G_COUNT"} == 0 && $alleles{$scaff}{$pos}{"INDEL_COUNT"} == 0) {
 			$too_few_reads ++ ;
 			delete $alleles{$scaff}{$pos} ;
 			next ;
-		}	
-	
+		}
+
 		push @new_mins, $min_alts[$counter] ;
 		$counter ++ ;
-	
+
 	}
 }
 
 my$min_sum = 0 ;
 foreach my$min (@new_mins) {$min_sum += $min ;}
 my$min_mean = $min_sum/@new_mins ;
-	
+
 my$min_dev = 0 ;
 foreach (@new_mins) {$min_dev += ($_ - $min_mean)**2 ;}
 my$min_stdev = sqrt($min_dev / @new_mins) ;
@@ -125,8 +124,8 @@ my$indels = 0 ;
 open OUT, ">$AC_output" or die "cannot open $AC_output\n" ;
 
 foreach my$scaffold (nsort keys %alleles) {
-	foreach my$position (sort {$a<=>$b} keys %{$alleles{$scaffold}}) {		
-				
+	foreach my$position (sort {$a<=>$b} keys %{$alleles{$scaffold}}) {
+
 		my$ref_base = $alleles{$scaffold}{$position}{"REF_BASE"} ;
 		my$ref_count = $alleles{$scaffold}{$position}{"REF_COUNT"} ;
 		my%alts ;
@@ -134,35 +133,35 @@ foreach my$scaffold (nsort keys %alleles) {
 		$alts{"T"} = $alleles{$scaffold}{$position}{"ALT_T_COUNT"} ;
 		$alts{"C"} = $alleles{$scaffold}{$position}{"ALT_C_COUNT"} ;
 		$alts{"G"} = $alleles{$scaffold}{$position}{"ALT_G_COUNT"} ;
-		
+
 		my$indel ;
 		if ($alleles{$scaffold}{$position}{"INDEL"}) {
-			$indel = $alleles{$scaffold}{$position}{"INDEL"} ;						
+			$indel = $alleles{$scaffold}{$position}{"INDEL"} ;
 			$alts{$indel} = $alleles{$scaffold}{$position}{"INDEL_COUNT"} ;
-			
+
 			$total_S ++ ;
 			$indels ++ ;
 		}
-		
+
 		if ($ref_count > 0) {
 			my@alt_bp = () ;
 			foreach my$bp (keys %alts) {
-				if ($alts{$bp} > 0) {push(@alt_bp, $bp) ;}				
+				if ($alts{$bp} > 0) {push(@alt_bp, $bp) ;}
 			}
-						
+
 			if (scalar(@alt_bp) == 0) { next ;} # invariant site
 			if (scalar(@alt_bp) > 1) { next ; print $scaffold, "\t", $position, "\t", "more than one alternate allele\n" ;}
-			
+
 			$total_S ++ ;
 			$snps ++ ;
-			
-			print OUT $scaffold, "\t", $position, "\t", $ref_base, "\t", $ref_count, "\t", $alt_bp[0], "\t", $alts{$alt_bp[0]}, "\t", $alts{$alt_bp[0]}/($alts{$alt_bp[0]}+$ref_count), "\n" ;			
+
+			print OUT $scaffold, "\t", $position, "\t", $ref_base, "\t", $ref_count, "\t", $alt_bp[0], "\t", $alts{$alt_bp[0]}, "\t", $alts{$alt_bp[0]}/($alts{$alt_bp[0]}+$ref_count), "\n" ;
 		}
-		
+
 		else {
-			my@alt_bp ; 
+			my@alt_bp ;
 			foreach my$bp (keys %alts) {
-				if ($alts{$bp} > 0) {push(@alt_bp, $bp) ;}				
+				if ($alts{$bp} > 0) {push(@alt_bp, $bp) ;}
 			}
 			if (scalar(@alt_bp) < 2) { next ;} # invariant site
 			if (scalar(@alt_bp) > 2) { next ; print $scaffold, "\t", $position, "\t", "more than one alternate allele\n" ;}
@@ -170,7 +169,7 @@ foreach my$scaffold (nsort keys %alleles) {
 			$total_S ++ ;
 			$snps ++ ;
 
-			print OUT $scaffold, "\t", $position, "\t", $alt_bp[0], "\t", $alts{$alt_bp[0]}, "\t", $alt_bp[1], "\t", $alts{$alt_bp[1]}, "\t", $alts{$alt_bp[1]}/($alts{$alt_bp[1]}+$alts{$alt_bp[0]}), "\n" ;			
+			print OUT $scaffold, "\t", $position, "\t", $alt_bp[0], "\t", $alts{$alt_bp[0]}, "\t", $alt_bp[1], "\t", $alts{$alt_bp[1]}, "\t", $alts{$alt_bp[1]}/($alts{$alt_bp[1]}+$alts{$alt_bp[0]}), "\n" ;
 		}
 	}
 }
@@ -207,19 +206,19 @@ foreach my$scaff (nsort keys %seqs) {
 				my$altC = $alleles{$scaff}{$pos}{"ALT_C_COUNT"} ;
 				my$altG = $alleles{$scaff}{$pos}{"ALT_G_COUNT"} ;
 				my$indel = $alleles{$scaff}{$pos}{"INDEL_COUNT"} ;
-			
+
 				# Multiallelic pi: over all site sum( over all alleles sum_i( Ji (n-Ji) ) / (n(n-1)) ) / L
 				my@ACs = ($ref, $altA, $altT, $altC, $altG, $indel) ;
 				my$AN = $ref + $altA + $altT + $altC + $altG + $indel ;
 				my$sum_i = 0 ;
 				foreach my$allele (@ACs) {$sum_i += ($allele * ($AN-$allele)) ;}
 				my$site_pi = $sum_i / ($AN*($AN-1)) ;
-			
+
 				print OUT $scaff, "\t", $pos , "\t", $site_pi, "\n" ;
-			
+
 				$sum_pi += $site_pi ;
 			}
-		
+
 			else {
 				print OUT $scaff, "\t", $pos , "\t", "NA", "\n" ;
 			}
@@ -250,7 +249,7 @@ print "\n", get_histogram(\@depths) ;
 sub parse_pileup {
 	my$file = $_[0] ;
 	my$keyword = $_[1] ;
-	
+
 	print "Reading pileup: ", $file, "\n\n" ;
 
 	open PILEUP, "<$file" or die "cannot open $file\n\n" ;
@@ -260,56 +259,54 @@ sub parse_pileup {
 	my@min_alts ;
 
 	while (<PILEUP>) {
-	
-		chomp ; 
-	
+
+		chomp ;
+
 		if ($_ =~ m/^#/) {next;}
-		
+
 		my@split = split(/\t/, $_) ;
-		
+
 		if ($split[0] !~ m/$keyword/) {next ;}
 
 		my$ref_base = $split[2] ;
-		my$depth = $split[3] ;	
+		my$depth = $split[3] ;
 
 		### Set min depth to 1 (opposed to 0) to avoid issues with binomial calculation
 		if ($depth <= 1) {next ;}
 
-		push(@depths, $depth) ;
-
 		#####
 		## Call column must be processed in this order otherwise regex matches will be incorrect (e.g. all indel bp will be detected as snp calls)
 		my$data = $split[4] ;
-	
-		# Remove mapping qualities (^ marks beginning of read and the ASCII of the character following it - 33 is is the mapping quality 
-		$data =~ s/(\^.)//g ;		
+
+		# Remove mapping qualities (^ marks beginning of read and the ASCII of the character following it - 33 is is the mapping quality
+		$data =~ s/(\^.)//g ;
 		# Remove end of read symbol
 		$data =~ s/\$//g ;
-		
+
 		# Count number of indels and remove from $data
 		my$indel = 0 ;
 		my@indels = () ;
-		
+
 		my%hash = () ;
 		while ($data =~ /(\d+)/g) {
 			$hash{$1} = 1 ;
 			$indel ++ ;
-		}		
+		}
 
 		foreach my$k (keys %hash) {
-			$data =~ s/[ATCGNatcgn\.,\*](-$k[ATCGNatcgn]{$k})//g ;		
+			$data =~ s/[ATCGNatcgn\.,\*](-$k[ATCGNatcgn]{$k})//g ;
 			$data =~ s/[ATCGNatcgn\.,\*](\+$k[ATCGNatcgn]{$k})//g ;
 			push(@indels, $1) ;
 		}
-						
+
 		# Count reference bases deleted in deletions reported in previous lines (*)
 		my$deleted = 0 ;
 		while ($data =~ m/\*/gi) { $deleted ++ ;}
-		
+
 		# count number of reads with reference allele at position
 		my$ref = 0 ;
 		while ($data =~ m/[\.\,]/gi) { $ref ++ ; }
-	
+
 		# count number of other possible alternate alleles
 		my$altA = 0;
 		while ($data =~ m/[aA]/gi) {$altA ++ ;}
@@ -322,13 +319,13 @@ sub parse_pileup {
 
 		my$altG = 0;
 		while ($data =~ m/[gG]/gi) {$altG ++ ;}
-		
+
 		# If indel calls exist:
 		if ($indel > 0) {
-			
+
 			# Capitalize indels so they match between strands
 			$_ = uc foreach @indels ;
-			
+
 			# Check that all indels are the same, and if not, remove calls
 			my%string = map{$_, 1} @indels ;
 			if (keys %string == 1) {# all indels equal
@@ -336,43 +333,42 @@ sub parse_pileup {
 
 			else {$indel = 0 ;}
 		}
-	
+
 		## Minimum minor allele count required based on errors at a position being binomially distributed
 		## P(error) = (coverage choose error) * seq_error^error * (1-seq_error)^(coverage-error)
 		my$min_alt ;
 		my$prob_accurate = 0 ;
-				
+
 		foreach my$cov (0..$depth) {
 			if ($prob_accurate >= 0.99) {last ;}
-			
+
 			$min_alt = $cov ;
 			my$accurate = binom($depth, $cov) * ($illumina_error_rate)**$cov * (1-$illumina_error_rate)**($depth-$cov) ;
 			$prob_accurate +=  $accurate ;
 
 #			print $depth, "\t", $min_alt, "\t", $prob_accurate, "\n" ;
 		}
-	
-		## Set absolute minimum to 5 
+
+		## Set absolute minimum to 5
 		if ($min_alt < 5) {$min_alt = 5 ;}
-		
-		push @min_alts, $min_alt ;
-		
+
 		## Output variant call if call > min_alt at site
 		$AC{$split[0]}{$split[1]}{"REF_BASE"} = $ref_base ;
 		$AC{$split[0]}{$split[1]}{"DEPTH"} = $depth ;
+		$AC{$split[0]}{$split[1]}{"MIN_ALT"} = $min_alt ;
 
 		if ($ref > $min_alt) {$AC{$split[0]}{$split[1]}{"REF_COUNT"} = $ref ;}
 		else {$AC{$split[0]}{$split[1]}{"REF_COUNT"} = 0 ;}
-		
+
 		if ($altA > $min_alt) {$AC{$split[0]}{$split[1]}{"ALT_A_COUNT"} = $altA ;}
 		else {$AC{$split[0]}{$split[1]}{"ALT_A_COUNT"} = 0 ;}
-		
+
 		if ($altT> $min_alt) {$AC{$split[0]}{$split[1]}{"ALT_T_COUNT"} = $altT ;}
 		else {$AC{$split[0]}{$split[1]}{"ALT_T_COUNT"} = 0 ;}
-		
+
 		if ($altC > $min_alt){$AC{$split[0]}{$split[1]}{"ALT_C_COUNT"} = $altC ;}
 		else {$AC{$split[0]}{$split[1]}{"ALT_C_COUNT"} = 0 ;}
-		
+
 		if ($altG > $min_alt) {$AC{$split[0]}{$split[1]}{"ALT_G_COUNT"} = $altG ;}
 		else {$AC{$split[0]}{$split[1]}{"ALT_G_COUNT"} = 0 ;}
 
@@ -380,16 +376,17 @@ sub parse_pileup {
 			$AC{$split[0]}{$split[1]}{"INDEL_COUNT"} = $indel ;
 			$AC{$split[0]}{$split[1]}{"INDEL"} = $indels[0] ;
 		}
-		
+
 		else {$AC{$split[0]}{$split[1]}{"INDEL_COUNT"} = 0 ;}
-		
+
 	}
-	
+
 	close PILEUP ;
 
 #	print "\nDone reading pileup\n\nSites with too few reads: $too_few_reads\nInvariant sites: $no_variant_count\n\n" ;
 
 	## Delete snp calls overlapping or within 5 bp of an indel
+	## Record @depths and @min_alts for non-filtered sites
 	foreach my$scaffold (keys %AC) {
 		my$positions = 0 ;
 		my$deleted = 0 ;
@@ -405,9 +402,13 @@ sub parse_pileup {
 				if ($AC{$scaffold}{$position}{"ALT_T_COUNT"} > 0) {$alleles ++ ;}
 				if ($AC{$scaffold}{$position}{"ALT_C_COUNT"} > 0) {$alleles ++ ;}
 				if ($AC{$scaffold}{$position}{"ALT_G_COUNT"} > 0) {$alleles ++ ;}
-				
+
 				if ($alleles >1) {delete $AC{$scaffold}{$position} ;}
-				else {next ;}
+				else {
+					push @depths, $AC{$scaffold}{$position}{"DEPTH"} ;
+					push @min_alts, $AC{$scaffold}{$position}{"MIN_ALT"} ;
+					next ;
+				}
 			}
 
 			else {
@@ -415,7 +416,7 @@ sub parse_pileup {
 				my$to_delete ;
 				foreach my$i (@range) {
 					# delete snp site if within 5 bp of indel (low and high confidence indels)
-					if ($AC{$scaffold}{$i}{"INDEL"}) {					
+					if ($AC{$scaffold}{$i}{"INDEL"}) {
 						$to_delete = "yes" ;
 					}
 				}
@@ -423,11 +424,15 @@ sub parse_pileup {
 					$deleted ++ ;
 					delete $AC{$scaffold}{$position} ;
 				}
+				else {
+					push @depths, $AC{$scaffold}{$position}{"DEPTH"} ;
+					push @min_alts, $AC{$scaffold}{$position}{"MIN_ALT"} ;
+				}
 			}
 		}
 		print "Positions deleted on $scaffold within 5bp of indel: $deleted\n" ;
 	}
-	
+
 	return (\@depths, \%AC, \@min_alts) ;
 }
 
@@ -463,7 +468,7 @@ sub read_fasta {
             $header =~ s/\s+$// ;
 
 			$count ++ ;
-			
+
             $seq = "" ;
         }
 
@@ -485,7 +490,7 @@ sub read_fasta {
     		delete $seqs{$scaff} ;
     	}
     }
-    
+
     return \%seqs ;
 }
 

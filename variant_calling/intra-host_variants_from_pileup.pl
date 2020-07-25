@@ -415,7 +415,7 @@ sub parse_pileup {
 				my$to_delete ;
 				foreach my$i (@range) {
 					# delete snp site if within 5 bp of indel (low and high confidence indels)
-					if ($AC{$scaffold}{$position}{"INDEL"}) {					
+					if ($AC{$scaffold}{$i}{"INDEL"}) {					
 						$to_delete = "yes" ;
 					}
 				}

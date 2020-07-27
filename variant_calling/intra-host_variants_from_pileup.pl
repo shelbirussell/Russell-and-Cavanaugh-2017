@@ -31,8 +31,8 @@ my@depths = @{$depths} ;
 my%alleles = %{$alleles} ;
 my@min_alts = @{$min_alts} ;
 
-##########################################################################################
-##############Filter by coverage depth and proximity to end of scaffold###################
+###########################################################################################
+##############Filter by coverage depth and proximity to end of scaffold####################
 ### Calculate depth statistics to filter on
 my$sum ;
 $sum += $_ for @depths ;

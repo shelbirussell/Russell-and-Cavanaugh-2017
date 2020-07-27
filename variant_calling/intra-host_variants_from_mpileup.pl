@@ -27,7 +27,7 @@ my$alleles = parse_pileup($pileup_file, $scaff_keyword) ;
 my%alleles = %{$alleles} ;
 
 
-#########################################################################################
+##########################################################################################
 #############Filter each sample by coverage depth and proximity to end of scaffold###################
 foreach my$sample (keys %alleles) {
 	my$total_sites = 0 ;

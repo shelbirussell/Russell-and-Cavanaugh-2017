@@ -3,7 +3,7 @@ use warnings ;
 use Sort::Naturally ;
 use File::Basename ;
 
-# Usage: perl intra-host_variants_from_pileup.pl Sv_sym_scaffold ref.fasta KB16gillMitoSym_stampy_realigned.pileup
+# Usage: perl intra-host_variants_from_mpileup.pl Sv_sym_scaffold ref.fasta KB16gillMitoSym_stampy_realigned.pileup
 
 my$scaff_keyword = $ARGV[0] ;
 my$fasta = $ARGV[1] ;
@@ -27,25 +27,62 @@ my$alleles = parse_pileup($pileup_file, $scaff_keyword) ;
 my%alleles = %{$alleles} ;
 
 
-##########################################################################################
-#############Filter each sample by coverage depth and proximity to end of scaffold###################
-foreach my$sample (keys %alleles) {
+## Print statistics to an organized table for easier comparison/viewing
+my$stat_table = basename($pileup_file) ;
+$stat_table =~ s/.pileup/${scaff_keyword}_pop_stats.txt/ ;
+
+open SUMMARY, ">$stat_table" or die "cannot open $stat_table\n" ;
+print SUMMARY "sample\ttotalS\tSNPs\tindels\taveragePi\n" ;
+
+
+################################################################################################################################
+#############Filter each sample's sites around indels, by coverage depth, and by proximity to end of scaffold###################
+foreach my$sample (nsort keys %alleles) {
 	my$total_sites = 0 ;
 	my@depths = () ;
 
 	foreach my$scaffold (nsort keys %{$alleles{$sample}}) {
+		my$deleted = 0 ;
+
 		foreach my$position (nsort keys %{$alleles{$sample}{$scaffold}}) {
-			if (!exists $alleles{$sample}{$scaffold}{$position}{"DEPTH"}) {
-				delete $alleles{$sample}{$scaffold}{$position} ;
-				next ;
+			## Delete snp calls overlapping
+			# check if position is an indel, and keep it if no snps were called there too
+			if (exists $alleles{$sample}{$scaffold}{$position}{"INDEL"}) {
+				my$al = 0 ;
+				if ($alleles{$sample}{$scaffold}{$position}{"REF_COUNT"} > 0) {$al ++ ;}
+				if ($alleles{$sample}{$scaffold}{$position}{"ALT_A_COUNT"} > 0) {$al ++ ;}
+				if ($alleles{$sample}{$scaffold}{$position}{"ALT_T_COUNT"} > 0) {$al ++ ;}
+				if ($alleles{$sample}{$scaffold}{$position}{"ALT_C_COUNT"} > 0) {$al ++ ;}
+				if ($alleles{$sample}{$scaffold}{$position}{"ALT_G_COUNT"} > 0) {$al ++ ;}
+
+				if ($al >1) {delete $alleles{$sample}{$scaffold}{$position} ;}
+				else {
+					push @depths, $alleles{$sample}{$scaffold}{$position}{"DEPTH"} ;
+					$total_sites ++ ;
+				}
 			}
 
+			## Delete snps within 5 bp of an indel
 			else {
-				push @depths, $alleles{$sample}{$scaffold}{$position}{"DEPTH"} ;
-				$total_sites ++ ;
+				my@range = ($position-5..$position+5) ;
+				my$to_delete ;
+				foreach my$i (@range) {
+				# delete snp site if within 5 bp of indel (low and high confidence indels)
+					if (exists $alleles{$sample}{$scaffold}{$i} && $alleles{$sample}{$scaffold}{$i}{"INDEL"}) {$to_delete = "yes" ;}
+				}
+				if ($to_delete && $to_delete eq "yes") {
+					$deleted ++ ;
+					delete $alleles{$sample}{$scaffold}{$position} ;
+				}
+
+					else {
+						push @depths, $alleles{$sample}{$scaffold}{$position}{"DEPTH"} ;
+						$total_sites ++ ;
+					}
+				}
 			}
+			print "Positions deleted in sample #$sample on $scaffold within 5bp of indel: $deleted\n" ;
 		}
-	}
 
 	### Calculate depth statistics to filter on
 	my$sum ;
@@ -77,7 +114,7 @@ foreach my$sample (keys %alleles) {
 		foreach my$pos (nsort keys %{$alleles{$sample}{$scaff}}) {
 
 			# exclude sites with coverage out of bounds
-			if ($alleles{$sample}{$scaff}{$pos}{"DEPTH"} > $upperbound || $alleles{$sample}{$scaff}{$pos}{"DEPTH"} < $lowerbound) {
+			if (!exists $alleles{$sample}{$scaff}{$pos}{"DEPTH"} || $alleles{$sample}{$scaff}{$pos}{"DEPTH"} > $upperbound || $alleles{$sample}{$scaff}{$pos}{"DEPTH"} < $lowerbound) {
 				$out_of_bounds_count ++ ;
 				delete $alleles{$sample}{$scaff}{$pos} ;
 				next ;
@@ -125,62 +162,63 @@ foreach my$sample (keys %alleles) {
 	##########
 	my$AC_output = basename($pileup_file) ;
 	$AC_output =~ s/.pileup/${sample}_${scaff_keyword}_all_AF_counts.txt/ ;
-	$AC_output =~ s/.filtered// ;
-	$AC_output =~ s/_stampy_realigned// ;
+
+	open OUT, ">$AC_output" or die "cannot open $AC_output\n" ;
 
 	my$total_S = 0 ;
 	my$snps = 0 ;
 	my$indels = 0 ;
 
-	open OUT, ">$AC_output" or die "cannot open $AC_output\n" ;
 
 	foreach my$scaffold (nsort keys %{$alleles{$sample}}) {
 		foreach my$position (sort {$a<=>$b} keys %{$alleles{$sample}{$scaffold}}) {
 
+			## Get allele and counts at position
 			my$ref_base = $alleles{$sample}{$scaffold}{$position}{"REF_BASE"} ;
 			my$ref_count = $alleles{$sample}{$scaffold}{$position}{"REF_COUNT"} ;
+			my$indel ;
 			my%alts ;
 			$alts{"A"} = $alleles{$sample}{$scaffold}{$position}{"ALT_A_COUNT"} ;
 			$alts{"T"} = $alleles{$sample}{$scaffold}{$position}{"ALT_T_COUNT"} ;
 			$alts{"C"} = $alleles{$sample}{$scaffold}{$position}{"ALT_C_COUNT"} ;
 			$alts{"G"} = $alleles{$sample}{$scaffold}{$position}{"ALT_G_COUNT"} ;
 
-			my$indel ;
 			if ($alleles{$sample}{$scaffold}{$position}{"INDEL"}) {
 				$indel = $alleles{$sample}{$scaffold}{$position}{"INDEL"} ;
 				$alts{$indel} = $alleles{$sample}{$scaffold}{$position}{"INDEL_COUNT"} ;
-
-				$total_S ++ ;
-				$indels ++ ;
 			}
 
+			## Count segregating alleles at position
+			my@alt_bp = () ;
+			foreach my$bp (keys %alts) {if ($alts{$bp} > 0) {push(@alt_bp, $bp) ;}}
+
+			## if one of the alleles is the reference
 			if ($ref_count > 0) {
-				my@alt_bp = () ;
-				foreach my$bp (keys %alts) {
-					if ($alts{$bp} > 0) {push(@alt_bp, $bp) ;}
-				}
-
 				if (scalar(@alt_bp) == 0) { next ;} # invariant site
-				if (scalar(@alt_bp) > 1) { next ; print $sample, "\t", $scaffold, "\t", $position, "\t", "more than one alternate allele\n" ;}
+				elsif (scalar(@alt_bp) > 1) {print $sample, "\t", $scaffold, "\t", $position, "\t", "more than one alternate allele\n" ; next ;}
+				else {
+					print OUT $scaffold, "\t", $position, "\t", $ref_base, "\t", $ref_count, "\t", $alt_bp[0], "\t", $alts{$alt_bp[0]}, "\t", $alts{$alt_bp[0]}/($alts{$alt_bp[0]}+$ref_count), "\n" ;
 
-				$total_S ++ ;
-				$snps ++ ;
-
-				print OUT $scaffold, "\t", $position, "\t", $ref_base, "\t", $ref_count, "\t", $alt_bp[0], "\t", $alts{$alt_bp[0]}, "\t", $alts{$alt_bp[0]}/($alts{$alt_bp[0]}+$ref_count), "\n" ;
+					## since site is biallelic and encodes the reference base, the other site can either be an indel or a snp
+					if ($alleles{$sample}{$scaffold}{$position}{"INDEL"}) {$indels ++ ;}
+					else {$snps ++ ;}
+					$total_S ++ ;
+				}
 			}
 
+			## if none of the alleles are the reference
 			else {
-				my@alt_bp ;
-				foreach my$bp (keys %alts) {
-					if ($alts{$bp} > 0) {push(@alt_bp, $bp) ;}
-				}
 				if (scalar(@alt_bp) < 2) { next ;} # invariant site
-				if (scalar(@alt_bp) > 2) {print $sample, "\t", $scaffold, "\t", $position, "\t", "more than one alternate allele\n" ; next ;}
+				elsif (scalar(@alt_bp) > 2) {print $sample, "\t", $scaffold, "\t", $position, "\t", "more than one alternate allele\n" ; next ;}
+				else {
+					print OUT $scaffold, "\t", $position, "\t", $alt_bp[0], "\t", $alts{$alt_bp[0]}, "\t", $alt_bp[1], "\t", $alts{$alt_bp[1]}, "\t", $alts{$alt_bp[1]}/($alts{$alt_bp[1]}+$alts{$alt_bp[0]}), "\n" ;
 
-				$total_S ++ ;
-				$snps ++ ;
-
-				print OUT $scaffold, "\t", $position, "\t", $alt_bp[0], "\t", $alts{$alt_bp[0]}, "\t", $alt_bp[1], "\t", $alts{$alt_bp[1]}, "\t", $alts{$alt_bp[1]}/($alts{$alt_bp[1]}+$alts{$alt_bp[0]}), "\n" ;
+					## biallelic site without the reference base could encode two snps or a snp and an indel
+					## we don't want to count the site twice, so the indel will take priority
+					if ($alleles{$sample}{$scaffold}{$position}{"INDEL"}) {$indels ++ ;}
+					else {$snps ++ ;}
+					$total_S ++ ;
+				}
 			}
 		}
 	}
@@ -199,8 +237,7 @@ foreach my$sample (keys %alleles) {
 	##### Iterate through reference sequence printing site-by-site pairwise diversity
 	my$pi_output = basename($pileup_file) ;
 	$pi_output =~ s/.pileup/${sample}_${scaff_keyword}_pi.txt/ ;
-	$pi_output =~ s/.filtered// ;
-	$pi_output =~ s/_stampy_realigned// ;
+
 	open OUT, ">$pi_output" or die "cannot open $pi_output\n" ;
 
 	my$sum_pi = 0 ;
@@ -257,7 +294,13 @@ foreach my$sample (keys %alleles) {
 #	print "\n", get_histogram(\@depths) ;
 	print "\n\n" ;
 
+	########################################################################################
+	#### Print table of S and pi values
+	print SUMMARY $sample, "\t", $total_S, "\t", $snps, "\t", $indels, "\t", $sum_pi/$total_length, "\n" ;
+
 }
+
+close SUMMARY ;
 
 
 
@@ -419,47 +462,6 @@ sub parse_pileup {
 		}
 	}
 	close PILEUP ;
-
-	## Delete snp calls overlapping or within 5 bp of an indel
-	foreach my$sample (keys %mpileup) {
-		foreach my$scaffold (keys %{$mpileup{$sample}}) {
-			my$positions = 0 ;
-			my$deleted = 0 ;
-
-			foreach my$position (keys %{$mpileup{$sample}{$scaffold}}) {
-				$positions ++ ;
-
-				# check if position is an indel, and keep it if no snps were called there too
-				if (exists $mpileup{$sample}{$scaffold}{$position}{"INDEL"}) {
-					my$alleles = 0 ;
-					if ($mpileup{$sample}{$scaffold}{$position}{"REF_COUNT"} > 0) {$alleles ++ ;}
-					if ($mpileup{$sample}{$scaffold}{$position}{"ALT_A_COUNT"} > 0) {$alleles ++ ;}
-					if ($mpileup{$sample}{$scaffold}{$position}{"ALT_T_COUNT"} > 0) {$alleles ++ ;}
-					if ($mpileup{$sample}{$scaffold}{$position}{"ALT_C_COUNT"} > 0) {$alleles ++ ;}
-					if ($mpileup{$sample}{$scaffold}{$position}{"ALT_G_COUNT"} > 0) {$alleles ++ ;}
-
-					if ($alleles >1) {delete $mpileup{$sample}{$scaffold}{$position} ;}
-					else {next ;}
-				}
-
-				else {
-					my@range = ($position-5..$position+5) ;
-					my$to_delete ;
-					foreach my$i (@range) {
-						# delete snp site if within 5 bp of indel (low and high confidence indels)
-						if ($mpileup{$sample}{$scaffold}{$i}{"INDEL"}) {
-							$to_delete = "yes" ;
-						}
-					}
-					if ($to_delete && $to_delete eq "yes") {
-						$deleted ++ ;
-						delete $mpileup{$sample}{$scaffold}{$position} ;
-					}
-				}
-			}
-			print "Positions deleted in sample #$sample on $scaffold within 5bp of indel: $deleted\n" ;
-		}
-		}
 
 	return \%mpileup ;
 }
